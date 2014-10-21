@@ -1,4 +1,5 @@
 from llvm.core import Module
+from llvm.ee import ExecutionEngine
 from llvm.passes import (FunctionPassManager,
                          PASS_GVN,
                          PASS_INSTCOMBINE,
@@ -18,6 +19,7 @@ class Context(object):
         self.module = Module.new(name)
         self.builder = None
         self.scope = {}
+        self.executor = ExecutionEngine.new(self.module)
         self.fpm = self.setup_fpm()
 
     def setup_fpm(self):

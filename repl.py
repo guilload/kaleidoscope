@@ -1,5 +1,7 @@
 import cStringIO
 
+from llvm.core import Type
+
 from context import Context
 from lexer import Lexer
 from parser import Parser
@@ -29,11 +31,15 @@ def main():
         tokens = Lexer(stream).lex()  # returns a generator
         ast = Parser(tokens).parse()  # returns a generator
 
-        for node in ast:
+        for evaluate, node in ast:
             try:
-                print node.code(context)
+                func = node.code(context)
             except SyntaxError:
                 continue
+
+            if evaluate:
+                res = context.executor.run_function(func, [])
+                print res.as_real(Type.double())
 
 
 if __name__ == '__main__':

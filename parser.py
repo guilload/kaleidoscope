@@ -1,5 +1,3 @@
-from llvm.core import Module
-
 from ast import BinaryOperator, Call, Function, If, Number, Prototype, Variable
 
 from tokens import Char as CharToken
@@ -228,10 +226,10 @@ class Parser(object):
         while self.current != EOF:
 
             if self.current == Def:
-                yield self.parse_definition()
+                yield False, self.parse_definition()
 
             elif self.current == Extern:
-                yield self.parse_extern()
+                yield False, self.parse_extern()
 
             else:
-                yield self.parse_expression()
+                yield True, self.parse_toplevel()
