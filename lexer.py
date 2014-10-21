@@ -2,12 +2,9 @@ from tokens import Char, EOF, Identifier, KEYWORDS, Number
 
 
 class Lexer(object):
-    def __init__(self, filepath):
-        self.stream = open(filepath)
-        self.current = ''
-
-    def __del__(self):
-        self.stream.close()
+    def __init__(self, stream):
+        self.current = None
+        self.stream = stream
 
     def lex(self):
         self.current = self.stream.read(1)

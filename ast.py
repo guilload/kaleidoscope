@@ -1,3 +1,7 @@
+from llvm.core import Builder, Constant, FCMP_ULT, Type
+from llvm.core import Function as Func
+
+
 class Expression(object):
     """
     Base class for all expression nodes.
@@ -12,6 +16,9 @@ class Number(Expression):
     def __init__(self, value):
         self.value = value
 
+    def code(self, _):
+        return Constant.real(Type.double(), self.value)
+
 
 class Variable(Expression):
     """
@@ -19,6 +26,12 @@ class Variable(Expression):
     """
     def __init__(self, name):
         self.name = name
+
+    def code(self, context):
+        try:
+            return context.scope[self.name]
+        except KeyError:
+            raise SyntaxError("unknown variable name: '{}'".format(self.name))
 
 
 class BinaryOperator(Expression):
@@ -30,6 +43,26 @@ class BinaryOperator(Expression):
         self.left = left
         self.right = right
 
+    def code(self, context):
+        left = self.left.code(context)
+        right = self.right.code(context)
+
+        if self.operator == '+':
+            return context.builder.fadd(left, right, 'addtmp')
+
+        elif self.operator == '-':
+            return context.builder.fsub(left, right, 'subtmp')
+
+        elif self.operator == '*':
+            return context.builder.fmul(left, right, 'multmp')
+
+        elif self.operator == '<':
+            ret = context.builder.fcmp(FCMP_ULT, left, right, 'cmptmp')
+            # Convert bool 0 or 1 to double 0.0 or 1.0.
+            return context.builder.uitofp(ret, Type.double(), 'booltmp')
+        else:
+            raise SyntaxError('unknown binary operator')
+
 
 class Call(Expression):
     """
@@ -38,6 +71,17 @@ class Call(Expression):
     def __init__(self, callee, args):
         self.callee = callee
         self.args = args
+
+    def code(self, context):
+        # Look up the name in the global module table.
+        callee = context.module.get_function_named(self.callee)
+
+        # Check for argument mismatch error.
+        if len(callee.args) != len(self.args):
+            raise SyntaxError('Incorrect number of arguments passed.')  # FIXME
+
+        args = [arg.code(context) for arg in self.args]
+        return context.builder.call(callee, args, 'calltmp')
 
 
 class If(Expression):
@@ -60,6 +104,35 @@ class Prototype(object):
         self.name = name
         self.args = args
 
+    def code(self, context):
+        # Make the function type, eg. double(double, double).
+        func_args = (Type.double(),) * len(self.args)
+        func_type = Type.function(Type.double(), func_args, False)
+        func = Func.new(context.module, func_type, self.name)
+
+        # If the name conflicted, there was already something with the same
+        # name. If it has a body, don't allow redefinition or reextern.
+        if func.name != self.name:
+            func.delete()
+            func = context.module.get_function_named(self.name)
+
+            # If the function already has a body, reject this.
+            if not func.is_declaration:
+                raise SyntaxError('Redefinition of function.')
+
+            # If F took a different number of args, reject.
+            if len(func.args) != len(self.args):
+                raise SyntaxError('Redeclaration of a function with '
+                                  'different number of args.')
+
+            # Set names for all arguments and add them to the variables symbol
+            # table.
+        for arg, name in zip(func.args, self.args):
+            arg.name = name
+            context.scope[name] = arg  # Add arguments to symbol table.
+
+        return func
+
 
 class Function(object):
     """
@@ -68,3 +141,26 @@ class Function(object):
     def __init__(self, prototype, body):
         self.prototype = prototype
         self.body = body
+
+    def code(self, context):
+        context.scope = {}  # Create a new scope
+
+        # Create a function object.
+        func = self.prototype.code(context)
+
+        # Create a new basic block to start insertion into.
+        block = func.append_basic_block('entry')
+        context.builder = Builder.new(block)
+
+        # Finish off the function.
+        try:
+            ret = self.body.code(context)
+            context.builder.ret(ret)
+
+            # Validate the generated code, checking for consistency.
+            func.verify()
+        except:
+            func.delete()
+            raise
+
+        return func

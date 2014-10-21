@@ -1,12 +1,12 @@
+from llvm.core import Module
+
 from ast import BinaryOperator, Call, Function, If, Number, Prototype, Variable
 
-from lexer import Lexer
-
 from tokens import Char as CharToken
-from tokens import Identifier as IdentifierToken
-from tokens import Number as NumberToken
 from tokens import Def, EOF, Extern
+from tokens import Identifier as IdentifierToken
 from tokens import If as IfToken, Else as ElseToken, Then as ThenToken
+from tokens import Number as NumberToken
 
 
 class Parser(object):
@@ -25,9 +25,9 @@ class Parser(object):
                   '*': 40,
                   '/': 40}
 
-    def __init__(self, filepath):
-        self.stream = Lexer(filepath).lex()
-        self.current = self.stream.next()
+    def __init__(self, stream):
+        self.current = None
+        self.stream = stream
 
     def next(self):
         self.current = self.stream.next()
@@ -54,7 +54,7 @@ class Parser(object):
         expression = self.parse_expression()
 
         if self.current != ')':
-            raise RuntimeError("Expected ')'!")
+            raise SyntaxError("Expected ')'!")
 
         self.next()
         return expression
@@ -84,7 +84,7 @@ class Parser(object):
 
                 if self.current != ',':
                     error = "Expected ')' or ',' in argument list"
-                    raise RuntimeError(error)
+                    raise SyntaxError(error)
 
                 self.next()
 
@@ -108,7 +108,7 @@ class Parser(object):
             return self.parse_paren()
 
         else:
-            raise RuntimeError('Unknown token when expecting an expression.')
+            raise SyntaxError('Unknown token when expecting an expression.')
 
     def parse_expression(self):
         """
@@ -150,13 +150,13 @@ class Parser(object):
         # prototype ::= id '(' id* ')'
         """
         if not isinstance(self.current, IdentifierToken):
-            raise RuntimeError('Expected function name in prototype.')
+            raise SyntaxError('Expected function name in prototype.')
 
         name = self.current.name
         self.next()
 
         if self.current != '(':
-            raise RuntimeError("Expected '(' in prototype.")
+            raise SyntaxError("Expected '(' in prototype.")
 
         self.next()
 
@@ -170,7 +170,7 @@ class Parser(object):
             self.next()
 
         if self.current != ')':
-            raise RuntimeError("Expected ')' in prototype.")
+            raise SyntaxError("Expected ')' in prototype.")
 
         self.next()
         return Prototype(name, args)
@@ -206,7 +206,7 @@ class Parser(object):
         condition = self.parse_expression()
 
         if self.current != ThenToken:
-            raise RuntimeError("Expected 'then'.")
+            raise SyntaxError("Expected 'then'.")
 
         self.next()
         then_branch = self.parse_expression()
@@ -223,6 +223,8 @@ class Parser(object):
         """
         top ::= definition | external | expression | EOF
         """
+        self.next()
+
         while self.current != EOF:
 
             if self.current == Def:
