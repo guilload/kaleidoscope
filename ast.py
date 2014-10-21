@@ -110,23 +110,8 @@ class Prototype(object):
         func_type = Type.function(Type.double(), func_args, False)
         func = Func.new(context.module, func_type, self.name)
 
-        # If the name conflicted, there was already something with the same
-        # name. If it has a body, don't allow redefinition or reextern.
-        if func.name != self.name:
-            func.delete()
-            func = context.module.get_function_named(self.name)
+        # FIXME deal with function redefinition
 
-            # If the function already has a body, reject this.
-            if not func.is_declaration:
-                raise SyntaxError('Redefinition of function.')
-
-            # If F took a different number of args, reject.
-            if len(func.args) != len(self.args):
-                raise SyntaxError('Redeclaration of a function with '
-                                  'different number of args.')
-
-            # Set names for all arguments and add them to the variables symbol
-            # table.
         for arg, name in zip(func.args, self.args):
             arg.name = name
             context.scope[name] = arg  # Add arguments to symbol table.
