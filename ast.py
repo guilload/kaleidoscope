@@ -144,6 +144,7 @@ class Function(object):
 
             # Validate the generated code, checking for consistency.
             func.verify()
+            context.fpm.run(func)
         except:
             func.delete()
             raise
