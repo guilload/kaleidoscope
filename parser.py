@@ -1,10 +1,5 @@
-from ast import BinaryOperator, Call, Function, If, Number, Prototype, Variable
-
-from tokens import Char as CharToken
-from tokens import Def, EOF, Extern
-from tokens import Identifier as IdentifierToken
-from tokens import If as IfToken, Else as ElseToken, Then as ThenToken
-from tokens import Number as NumberToken
+import ast
+import tokens
 
 
 class Parser(object):
@@ -31,7 +26,7 @@ class Parser(object):
         self.current = self.stream.next()
 
     def current_token_precedence(self):
-        if isinstance(self.current, CharToken):
+        if isinstance(self.current, tokens.Char):
             return self.precedence.get(self.current.value, -1)
         else:
             return -1
@@ -40,7 +35,7 @@ class Parser(object):
         """
         numberexpr ::= number
         """
-        expression = Number(self.current.value)
+        expression = ast.Number(self.current.value)
         self.next()
         return expression
 
@@ -66,7 +61,7 @@ class Parser(object):
         self.next()
 
         if self.current != '(':
-            return Variable(name)
+            return ast.Variable(name)
 
         self.next()
 
@@ -87,19 +82,19 @@ class Parser(object):
                 self.next()
 
         self.next()
-        return Call(name, args)
+        return ast.Call(name, args)
 
     def parse_primary(self):
         """
         primaryexpr ::= identifierexpr | numberexpr | parenexpr
         """
-        if isinstance(self.current, IdentifierToken):
+        if isinstance(self.current, tokens.Identifier):
             return self.parse_identifier()
 
-        elif self.current == IfToken:
+        elif self.current == tokens.If:
             return self.parse_if()
 
-        elif isinstance(self.current, NumberToken):
+        elif isinstance(self.current, tokens.Number):
             return self.parse_number()
 
         elif self.current == '(':
@@ -141,13 +136,13 @@ class Parser(object):
             if precedence < next_precedence:
                 right = self.parse_binop_right(right, precedence + 1)
 
-            left = BinaryOperator(binop, left, right)
+            left = ast.BinaryOperator(binop, left, right)
 
     def parse_prototype(self):
         """
         # prototype ::= id '(' id* ')'
         """
-        if not isinstance(self.current, IdentifierToken):
+        if not isinstance(self.current, tokens.Identifier):
             raise SyntaxError('Expected function name in prototype.')
 
         name = self.current.name
@@ -160,10 +155,10 @@ class Parser(object):
 
         if self.current == ')':
             self.next()
-            return Prototype(name, [])
+            return ast.Prototype(name, [])
 
         args = []
-        while isinstance(self.current, IdentifierToken):
+        while isinstance(self.current, tokens.Identifier):
             args.append(self.current.name)
             self.next()
 
@@ -171,7 +166,7 @@ class Parser(object):
             raise SyntaxError("Expected ')' in prototype.")
 
         self.next()
-        return Prototype(name, args)
+        return ast.Prototype(name, args)
 
     def parse_definition(self):
         """
@@ -180,7 +175,7 @@ class Parser(object):
         self.next()
         prototype = self.parse_prototype()
         body = self.parse_expression()
-        return Function(prototype, body)
+        return ast.Function(prototype, body)
 
     def parse_extern(self):
         """
@@ -193,8 +188,8 @@ class Parser(object):
         """
         toplevelexpr ::= expression
         """
-        prototype = Prototype('', [])
-        return Function(prototype, self.parse_expression())
+        prototype = ast.Prototype('', [])
+        return ast.Function(prototype, self.parse_expression())
 
     def parse_if(self):
         """
@@ -203,19 +198,19 @@ class Parser(object):
         self.next()
         condition = self.parse_expression()
 
-        if self.current != ThenToken:
+        if self.current != tokens.Then:
             raise SyntaxError("Expected 'then'.")
 
         self.next()
         then_branch = self.parse_expression()
 
-        if self.current != ElseToken:
-            return If(condition, then_branch)
+        if self.current != tokens.Else:
+            return ast.If(condition, then_branch)
 
         self.next()
         else_branch = self.parse_expression()
 
-        return If(condition, then_branch, else_branch)
+        return ast.If(condition, then_branch, else_branch)
 
     def parse(self):
         """
@@ -223,15 +218,15 @@ class Parser(object):
         """
         self.next()
 
-        while self.current != EOF:
+        while self.current != tokens.EOF:
 
-            if self.current == Def:
+            if self.current == tokens.Def:
                 yield False, self.parse_definition()
 
-            elif self.current == Extern:
+            elif self.current == tokens.Extern:
                 yield False, self.parse_extern()
 
-            elif self.current == IfToken:
+            elif self.current == tokens.If:
                 yield False, self.parse_if()
 
             else:

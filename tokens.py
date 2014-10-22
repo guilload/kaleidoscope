@@ -20,6 +20,12 @@ class _Else(Keyword):
 Else = _Else()
 
 
+class _For(Keyword):
+    pass
+
+For = _For()
+
+
 class _If(Keyword):
     pass
 
@@ -38,7 +44,7 @@ class _Extern(Keyword):
 Extern = _Extern()
 
 
-KEYWORDS = {k.name: k for k in (Def, Else, If, Then, Extern)}
+KEYWORDS = {k.name: k for k in (Def, Else, For, If, Then, Extern)}
 
 
 class _EOF(object):
