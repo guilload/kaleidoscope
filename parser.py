@@ -231,5 +231,8 @@ class Parser(object):
             elif self.current == Extern:
                 yield False, self.parse_extern()
 
+            elif self.current == IfToken:
+                yield False, self.parse_if()
+
             else:
                 yield True, self.parse_toplevel()

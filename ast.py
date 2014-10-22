@@ -1,4 +1,4 @@
-from llvm.core import Builder, Constant, FCMP_ULT, Type
+from llvm.core import Builder, Constant, FCMP_ONE, FCMP_ULT, Type
 from llvm.core import Function as Func
 
 
@@ -92,6 +92,45 @@ class If(Expression):
         self.condition = condition
         self.then_branch = then_branch
         self.else_branch = else_branch
+
+    def code(self, context):
+        condition = self.condition.code(context)
+        zero = Constant.real(Type.double(), 0)
+        boolean = context.builder.fcmp(FCMP_ONE, condition, zero, 'ifcond')
+
+        func = context.builder.basic_block.function
+
+        # Create blocks for the then and else cases. Insert the 'then' block
+        # at the end of the function.
+        then_block = func.append_basic_block('then')
+        else_block = func.append_basic_block('else')
+        merge_block = func.append_basic_block('ifcont')
+        context.builder.cbranch(boolean, then_block, else_block)
+
+        # Emit then value.
+        context.builder.position_at_end(then_block)
+        then_value = self.then_branch.code(context)
+        context.builder.branch(merge_block)
+
+        # code generation of 'Then' can change the current block; update
+        # then_block or the PHI node.
+        then_block = context.builder.basic_block
+
+        # Emit else block.
+        context.builder.position_at_end(else_block)
+        else_value = self.else_branch.code(context)
+        context.builder.branch(merge_block)
+
+        # code generation of 'Else' can change the current block, update
+        # else_block or the PHI node.
+        else_block = context.builder.basic_block
+
+        # Emit merge block.
+        context.builder.position_at_end(merge_block)
+        phi = context.builder.phi(Type.double(), 'iftmp')
+        phi.add_incoming(then_value, then_block)
+        phi.add_incoming(else_value, else_block)
+        return phi
 
 
 class Prototype(object):
