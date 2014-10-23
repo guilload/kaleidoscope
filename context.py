@@ -25,6 +25,9 @@ class Context(object):
     def setup_fpm(self):
         fpm = FunctionPassManager.new(self.module)
 
+        # github.com/llvmpy/llvmpy/issues/44
+        fpm.add(self.executor.target_data.clone())
+
         for optimization in self.optimizations:
             fpm.add(optimization)
 
