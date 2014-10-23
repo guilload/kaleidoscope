@@ -3,15 +3,17 @@ from llvm.ee import ExecutionEngine
 from llvm.passes import (FunctionPassManager,
                          PASS_GVN,
                          PASS_INSTCOMBINE,
+                         PASS_MEM2REG,
                          PASS_REASSOCIATE,
                          PASS_SIMPLIFYCFG)
 
 
 class Context(object):
 
-    optimizations = (PASS_GVN,
+    optimizations = (PASS_MEM2REG,
                      PASS_INSTCOMBINE,
                      PASS_REASSOCIATE,
+                     PASS_GVN,
                      PASS_SIMPLIFYCFG)
 
     def __init__(self, name):

@@ -9,7 +9,8 @@ class Parser(object):
     updates Parser.current with its results.
     """
 
-    precedence = {'<': 10,
+    precedence = {'=': 2,
+                  '<': 10,
                   '<=': 10,
                   '>': 10,
                   '>=': 10,
