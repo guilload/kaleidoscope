@@ -32,6 +32,12 @@ class _If(Keyword):
 If = _If()
 
 
+class _In(Keyword):
+    pass
+
+In = _In()
+
+
 class _Then(Keyword):
     pass
 
@@ -44,7 +50,7 @@ class _Extern(Keyword):
 Extern = _Extern()
 
 
-KEYWORDS = {k.name: k for k in (Def, Else, For, If, Then, Extern)}
+KEYWORDS = {k.name: k for k in (Def, Else, For, If, In, Then, Extern)}
 
 
 class _EOF(object):

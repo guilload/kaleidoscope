@@ -189,3 +189,82 @@ class Function(object):
             raise
 
         return func
+
+
+class For(Expression):
+    """
+    Expression class for for / in.
+    """
+    def __init__(self, variable, start, end, step, body):
+        self.variable = variable
+        self.start = start
+        self.end = end
+        self.step = step
+        self.body = body
+
+    def code(self, context):
+        # Emit the start code first, without 'variable' in scope.
+        start_value = self.start.code(context)
+
+        # Make the new basic block for the loop header, inserting after
+        # current block.
+        function = context.builder.basic_block.function
+        pre_header_block = context.builder.basic_block
+        loop_block = function.append_basic_block('loop')
+
+        # Insert an explicit fallthrough from the current block to the
+        # loop_block.
+        context.builder.branch(loop_block)
+
+        # Start insertion in loop_block.
+        context.builder.position_at_end(loop_block)
+
+        # Start the PHI node with an entry for start.
+        variable_phi = context.builder.phi(Type.double(), self.variable)
+        variable_phi.add_incoming(start_value, pre_header_block)
+
+        # Within the loop, the variable is defined equal to the PHI node. If
+        # if shadows an existing variable, we have to restore it, so save it
+        # now.
+        old_value = context.scope.get(self.variable, None)
+        context.scope[self.variable] = variable_phi
+
+        # Emit the body of the loop.  This, like any other expr, can change
+        # the current BB.  Note that we ignore the value computed by the body.
+        self.body.code(context)
+
+        # Emit the step value.
+        if self.step:
+            step_value = self.step.code(context)
+        else:
+            # If not specified, use 1.0.
+            step_value = Constant.real(Type.double(), 1)
+
+        next_value = context.builder.fadd(variable_phi, step_value, 'next')
+
+        # Compute the end condition and convert it to a bool by comparing to
+        # 0.0.
+        end_condition = self.end.code(context)
+        end_condition_bool = context.builder.fcmp(FCMP_ONE, end_condition, Constant.real(Type.double(), 0), 'loopcond')
+
+        # Create the "after loop" block and insert it.
+        loop_end_block = context.builder.basic_block
+        after_block = function.append_basic_block('afterloop')
+
+        # Insert the conditional branch into the end of loop_end_block.
+        context.builder.cbranch(end_condition_bool, loop_block, after_block)
+
+        # Any new code will be inserted in after_block.
+        context.builder.position_at_end(after_block)
+
+        # Add a new entry to the PHI node for the backedge.
+        variable_phi.add_incoming(next_value, loop_end_block)
+
+        # Restore the unshadowed variable.
+        if old_value:
+            context.scope[self.variable] = old_value
+        else:
+            del context.scope[self.variable]
+
+        # for expr always returns 0.0.
+        return Constant.real(Type.double(), 0)

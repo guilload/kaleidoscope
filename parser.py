@@ -94,6 +94,9 @@ class Parser(object):
         elif self.current == tokens.If:
             return self.parse_if()
 
+        elif self.current == tokens.For:
+            return self.parse_for()
+
         elif isinstance(self.current, tokens.Number):
             return self.parse_number()
 
@@ -211,6 +214,41 @@ class Parser(object):
         else_branch = self.parse_expression()
 
         return ast.If(condition, then_branch, else_branch)
+
+    def parse_for(self):
+        self.next()
+
+        if not isinstance(self.current, tokens.Identifier):
+            raise SyntaxError('Expected identifier after for.')
+
+        variable = self.current.name
+        self.next()
+
+        if self.current != '=':
+            raise SyntaxError('Expected "=" after for variable.')
+        self.next()
+
+        start = self.parse_expression()
+
+        if self.current != ',':
+            raise SyntaxError('Expected "," after for start value.')
+        self.next()
+
+        end = self.parse_expression()
+
+        # The step value is optional.
+        if self.current == ',':
+            self.next()
+            step = self.parse_expression()
+        else:
+            step = None
+
+        if self.current != tokens.In:
+            raise SyntaxError('Expected "in" after for variable specification.')
+        self.next()
+
+        body = self.parse_expression()
+        return ast.For(variable, start, end, step, body)
 
     def parse(self):
         """
