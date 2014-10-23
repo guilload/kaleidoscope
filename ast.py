@@ -361,3 +361,48 @@ class For(Expression):
 
         # for expr always returns 0.0.
         return Constant.real(Type.double(), 0)
+
+
+class Var(Expression):
+    def __init__(self, variables, body):
+        self.variables = variables
+        self.body = body
+
+    def code(self, context):
+        old_bindings = {}
+        function = context.builder.basic_block.function
+
+        # Register all variables and emit their initializer.
+        for name, expression in self.variables.items():
+            # Emit the initializer before adding the variable to scope, this
+            # prevents the initializer from referencing the variable itself,
+            # d permits stuff like this:
+            #  var a = 1 in
+            #    var a = a in ...   # refers to outer 'a'.
+            if expression is not None:
+                value = expression.code(context)
+            else:
+                value = Constant.real(Type.double(), 0)
+
+            alloca = create_alloca_block(function, name)
+            context.builder.store(value, alloca)
+
+            # Remember the old variable binding so that we can restore the
+            # binding when we unrecurse.
+            old_bindings[name] = context.scope.get(name, None)
+
+            # Remember this binding.
+            context.scope[name] = alloca
+
+        # Codegen the body, now that all vars are in scope.
+        body = self.body.code(context)
+
+        # Pop all our variables from scope.
+        for name in self.variables:
+            if old_bindings[name] is not None:
+                context.scope[name] = old_bindings[name]
+            else:
+                del context.scope[name]
+
+        # Return the body computation.
+        return body

@@ -50,7 +50,13 @@ class _Extern(Keyword):
 Extern = _Extern()
 
 
-KEYWORDS = {k.name: k for k in (Def, Else, For, If, In, Then, Extern)}
+class _Var(Keyword):
+    pass
+
+Var = _Var()
+
+
+KEYWORDS = {k.name: k for k in (Def, Else, For, If, In, Then, Extern, Var)}
 
 
 class _EOF(object):

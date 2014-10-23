@@ -100,11 +100,15 @@ class Parser(object):
         elif isinstance(self.current, tokens.Number):
             return self.parse_number()
 
+        elif self.current == tokens.Var:
+            return self.parse_var()
+
         elif self.current == '(':
             return self.parse_paren()
 
         else:
-            raise SyntaxError('Unknown token when expecting an expression.')
+            error = "Unknown token '{}' when expecting an expression."
+            raise SyntaxError(error.format(self.current))
 
     def parse_expression(self):
         """
@@ -250,6 +254,49 @@ class Parser(object):
         body = self.parse_expression()
         return ast.For(variable, start, end, step, body)
 
+    def parse_var(self):
+        self.next()
+        variables = {}
+
+        # At least one variable name is required.
+        if not isinstance(self.current, tokens.Identifier):
+            raise RuntimeError('Expected identifier after "var".')
+
+            # The first part of this code parses the list of identifier/expr
+            # pairs into the local variables list.
+
+        while True:
+            name = self.current.name
+            self.next()
+
+            # Read the optional initializer.
+            if self.current == '=':
+                self.next()
+                variables[name] = self.parse_expression()
+            else:
+                variables[name] = None
+
+            # End of var list, exit loop.
+            if self.current != ',':
+                break
+
+            self.next()
+
+            if not isinstance(self.current, tokens.Identifier):
+                msg = 'Expected identifier after "," in a var expression.'
+                raise SyntaxError(msg)
+
+        # Once all the variables are parsed, we then parse the body and create
+        # the AST node:
+
+        # At this point, we have to have 'in'.
+        if self.current != tokens.In:
+            raise SyntaxError('Expected "in" keyword after "var".')
+        self.next()
+
+        body = self.parse_expression()
+        return ast.Var(variables, body)
+
     def parse(self):
         """
         top ::= definition | external | expression | EOF
@@ -266,6 +313,9 @@ class Parser(object):
 
             elif self.current == tokens.If:
                 yield False, self.parse_if()
+
+            elif self.current == tokens.Var:
+                yield False, self.parse_var()
 
             else:
                 yield True, self.parse_toplevel()
