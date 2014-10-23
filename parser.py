@@ -63,12 +63,11 @@ class Parser(object):
 
         if self.current != '(':
             return ast.Variable(name)
-
         self.next()
 
-        if self.current != ')':
-            args = []
+        args = []
 
+        if self.current != ')':
             while True:
                 expression = self.parse_expression()
                 args.append(expression)
