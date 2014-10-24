@@ -8,6 +8,12 @@ class Keyword(object):
         return 'keyword \'{}\''.format(self.name)
 
 
+class _Binary(Keyword):
+    pass
+
+Binary = _Binary()
+
+
 class _Def(Keyword):
     pass
 
@@ -18,6 +24,12 @@ class _Else(Keyword):
     pass
 
 Else = _Else()
+
+
+class _Extern(Keyword):
+    pass
+
+Extern = _Extern()
 
 
 class _For(Keyword):
@@ -44,10 +56,10 @@ class _Then(Keyword):
 Then = _Then()
 
 
-class _Extern(Keyword):
+class _Unary(Keyword):
     pass
 
-Extern = _Extern()
+Unary = _Unary()
 
 
 class _Var(Keyword):
@@ -56,7 +68,8 @@ class _Var(Keyword):
 Var = _Var()
 
 
-KEYWORDS = {k.name: k for k in (Def, Else, For, If, In, Then, Extern, Var)}
+KEYWORDS = {k.name: k for k in (Binary, Def, Else, Extern, For, If, In, Then,
+                                Unary, Var)}
 
 
 class _EOF(object):

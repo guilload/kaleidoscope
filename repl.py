@@ -29,7 +29,7 @@ def main():
 
         stream = cStringIO.StringIO(raw)
         tokens = Lexer(stream).lex()  # returns a generator
-        ast = Parser(tokens).parse()  # returns a generator
+        ast = Parser(tokens, context).parse()  # returns a generator
 
         for evaluate, node in ast:
             try:

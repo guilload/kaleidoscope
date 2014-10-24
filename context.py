@@ -16,6 +16,13 @@ class Context(object):
                      PASS_GVN,
                      PASS_SIMPLIFYCFG)
 
+    precedence = {'=': 2,
+                  '<': 10,
+                  '+': 20,
+                  '-': 20,
+                  '*': 40,
+                  '/': 40}
+
     def __init__(self, name):
         self.name = name
         self.module = Module.new(name)

@@ -38,7 +38,7 @@ class Variable(Expression):
         try:
             return context.builder.load(context.scope[self.name], self.name)
         except KeyError:
-            raise SyntaxError("unknown variable name: '{}'".format(self.name))
+            raise SyntaxError("unknown variable name: '{}'.".format(self.name))
 
 
 class BinaryOperator(Expression):
@@ -50,10 +50,14 @@ class BinaryOperator(Expression):
         self.left = left
         self.right = right
 
+    @property
+    def name(self):
+        return 'binary{}'.format(self.operator)
+
     def code(self, context):
         if self.operator == '=':
             if not isinstance(self.left, Variable):
-                raise SyntaxError('Destination of "=" must be a variable.')
+                raise SyntaxError("Destination of '=' must be a variable.")
 
             value = self.right.code(context)  # RHS code generation
             variable = context.scope[self.left.name]  # Look up the name
@@ -77,7 +81,24 @@ class BinaryOperator(Expression):
             # Convert bool 0 or 1 to double 0.0 or 1.0.
             return context.builder.uitofp(ret, Type.double(), 'booltmp')
         else:
-            raise SyntaxError('unknown binary operator')
+            func = context.module.get_function_named(self.name)
+            return context.builder.call(func, [left, right], 'binop')
+
+
+class UnaryOperator(Expression):
+
+    def __init__(self, operator, operand):
+        self.operator = operator
+        self.operand = operand
+
+    @property
+    def name(self):
+        return 'unary{}'.format(self.operator)
+
+    def code(self, context):
+        operand = self.operand.code(context)
+        func = context.module.get_function_named(self.name)
+        return context.builder.call(func, [operand], 'unop')
 
 
 class Call(Expression):
@@ -153,11 +174,25 @@ class Prototype(object):
     """
     This class represents the "prototype" for a function, which captures its
     name, and its argument names (thus implicitly the number of arguments the
-    function takes).
+    function takes), as well as if it is an operator.
     """
-    def __init__(self, name, args):
+    def __init__(self, name, args, operator=False, precedence=0):
         self.name = name
         self.args = args
+        self.operator = operator
+        self.precedence = precedence
+
+    @property
+    def binaryop(self):
+        return self.operator and len(self.args) == 2
+
+    @property
+    def opname(self):
+        if not self.operator:
+            error = "'Prototype' object has no attribute 'opname'."
+            raise AttributeError(error)
+
+        return self.name[-1]
 
     def code(self, context):
         # Make the function type, eg. double(double, double).
@@ -188,6 +223,11 @@ class Function(object):
         # Create a function object.
         func = self.prototype.code(context)
 
+        # If this is a binary operator, install its precedence.
+        if self.prototype.binaryop:
+            opname = self.prototype.opname
+            context.precedence[opname] = self.prototype.precedence
+
         # Create a new basic block to start insertion into.
         block = func.append_basic_block('entry')
         context.builder = Builder.new(block)
@@ -209,6 +249,10 @@ class Function(object):
             context.fpm.run(func)
         except:
             func.delete()
+
+            if self.prototype.binaryop:
+                del context.precedence[self.prototype.opname]
+
             raise
 
         return func

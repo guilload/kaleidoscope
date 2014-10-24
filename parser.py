@@ -9,26 +9,17 @@ class Parser(object):
     updates Parser.current with its results.
     """
 
-    precedence = {'=': 2,
-                  '<': 10,
-                  '<=': 10,
-                  '>': 10,
-                  '>=': 10,
-                  '+': 20,
-                  '-': 20,
-                  '*': 40,
-                  '/': 40}
-
-    def __init__(self, stream):
-        self.current = None
+    def __init__(self, stream, context):
         self.stream = stream
+        self.context = context
+        self.current = None
 
     def next(self):
         self.current = self.stream.next()
 
     def current_token_precedence(self):
         if isinstance(self.current, tokens.Char):
-            return self.precedence.get(self.current.value, -1)
+            return self.context.precedence.get(self.current.value, -1)
         else:
             return -1
 
@@ -48,7 +39,7 @@ class Parser(object):
         expression = self.parse_expression()
 
         if self.current != ')':
-            raise SyntaxError("Expected ')'!")
+            raise SyntaxError("Expected ')'.")
 
         self.next()
         return expression
@@ -76,8 +67,8 @@ class Parser(object):
                     break
 
                 if self.current != ',':
-                    error = "Expected ')' or ',' in argument list"
-                    raise SyntaxError(error)
+                    msg = "Expected ')' or ',' in argument list"
+                    raise SyntaxError(msg)
 
                 self.next()
 
@@ -107,14 +98,14 @@ class Parser(object):
             return self.parse_paren()
 
         else:
-            error = "Unknown token '{}' when expecting an expression."
-            raise SyntaxError(error.format(self.current))
+            msg = "Unknown token '{}' when expecting an expression."
+            raise SyntaxError(msg.format(self.current))
 
     def parse_expression(self):
         """
-        expression ::= primary binoprhs
+        expression ::= unary binoprhs
         """
-        left = self.parse_primary()
+        left = self.parse_unary()
         return self.parse_binop_right(left, 0)
 
     def parse_binop_right(self, left, min_precedence):
@@ -132,8 +123,8 @@ class Parser(object):
             binop = self.current.value
             self.next()
 
-            # Parse the primary expression after the binary operator.
-            right = self.parse_primary()
+            # Parse the unary expression after the binary operator.
+            right = self.parse_unary()
 
             # If binary_operator binds less tightly with right than the
             # operator after right, let the pending operator take right as its
@@ -145,24 +136,67 @@ class Parser(object):
 
             left = ast.BinaryOperator(binop, left, right)
 
+    def parse_unary(self):
+        """
+        # unary ::= primary | unary_operator unary
+        """
+        # If the current token is not an operator, it must be a primary
+        # expression.
+        if not isinstance(self.current, tokens.Char) or self.current in ('(', ')'):
+            return self.parse_primary()
+
+        # If this is a unary operator, read it.
+        operator = self.current.value
+        self.next()
+        return ast.UnaryOperator(operator, self.parse_unary())
+
     def parse_prototype(self):
         """
-        # prototype ::= id '(' id* ')'
+        # ::= id '(' id* ')'
+        # ::= binary op number? (id, id)
+        # ::= unary op (id)
         """
-        if not isinstance(self.current, tokens.Identifier):
-            raise SyntaxError('Expected function name in prototype.')
+        precedence = None
 
-        name = self.current.name
-        self.next()
+        if isinstance(self.current, tokens.Identifier):
+            arity = 0
+            name = self.current.name
+            self.next()
+
+        elif self.current == tokens.Unary:
+            arity = 1
+            self.next()
+
+            if not isinstance(self.current, tokens.Char):
+                raise SyntaxError("Expected an operator after 'unary'.")
+
+            name = 'unary' + self.current.value
+            self.next()
+
+        elif self.current == tokens.Binary:
+            arity = 2
+            self.next()  # eat 'binary'.
+
+            if not isinstance(self.current, tokens.Char):
+                raise SyntaxError("Expected an operator after 'binary'.")
+
+            name = 'binary{}'.format(self.current.value)
+            self.next()
+
+            if isinstance(self.current, tokens.Number):
+                if not 1 <= self.current.value <= 100:
+                    msg = 'Invalid precedence: must be in range [1, 100].'
+                    raise SyntaxError(msg)
+
+                precedence = self.current.value
+                self.next()
+        else:
+            msg = "Expected function name, 'unary' or 'binary' in prototype."
+            raise SyntaxError(msg)
 
         if self.current != '(':
             raise SyntaxError("Expected '(' in prototype.")
-
         self.next()
-
-        if self.current == ')':
-            self.next()
-            return ast.Prototype(name, [])
 
         args = []
         while isinstance(self.current, tokens.Identifier):
@@ -171,9 +205,13 @@ class Parser(object):
 
         if self.current != ')':
             raise SyntaxError("Expected ')' in prototype.")
-
         self.next()
-        return ast.Prototype(name, args)
+
+        if arity and arity != len(args) != 2:
+            msg = 'Invalid number of arguments for a {} operator.'
+            raise SyntaxError(msg.format('unary' if arity == 1 else 'binary'))
+
+        return ast.Prototype(name, args, arity != 0, precedence)
 
     def parse_definition(self):
         """
@@ -223,19 +261,19 @@ class Parser(object):
         self.next()
 
         if not isinstance(self.current, tokens.Identifier):
-            raise SyntaxError('Expected identifier after for.')
+            raise SyntaxError("Expected identifier after 'for'.")
 
         variable = self.current.name
         self.next()
 
         if self.current != '=':
-            raise SyntaxError('Expected "=" after for variable.')
+            raise SyntaxError("Expected '=' after for variable.")
         self.next()
 
         start = self.parse_expression()
 
         if self.current != ',':
-            raise SyntaxError('Expected "," after for start value.')
+            raise SyntaxError("Expected ',' after for start value.")
         self.next()
 
         end = self.parse_expression()
@@ -248,7 +286,8 @@ class Parser(object):
             step = None
 
         if self.current != tokens.In:
-            raise SyntaxError('Expected "in" after for variable specification.')
+            msg = "Expected 'in' after for variable specification."
+            raise SyntaxError(msg)
         self.next()
 
         body = self.parse_expression()
@@ -260,7 +299,7 @@ class Parser(object):
 
         # At least one variable name is required.
         if not isinstance(self.current, tokens.Identifier):
-            raise RuntimeError('Expected identifier after "var".')
+            raise SyntaxError("Expected identifier after 'var'.")
 
             # The first part of this code parses the list of identifier/expr
             # pairs into the local variables list.
@@ -283,7 +322,7 @@ class Parser(object):
             self.next()
 
             if not isinstance(self.current, tokens.Identifier):
-                msg = 'Expected identifier after "," in a var expression.'
+                msg = "Expected identifier after ',' in a var expression."
                 raise SyntaxError(msg)
 
         # Once all the variables are parsed, we then parse the body and create
@@ -291,7 +330,7 @@ class Parser(object):
 
         # At this point, we have to have 'in'.
         if self.current != tokens.In:
-            raise SyntaxError('Expected "in" keyword after "var".')
+            raise SyntaxError("Expected 'in' keyword after 'var'.")
         self.next()
 
         body = self.parse_expression()
