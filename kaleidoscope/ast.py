@@ -115,7 +115,7 @@ class Call(Expression):
 
         # Check for argument mismatch error.
         if len(callee.args) != len(self.args):
-            raise SyntaxError('Incorrect number of arguments passed.')  # FIXME
+            raise SyntaxError('Incorrect number of arguments passed.')
 
         args = [arg.code(context) for arg in self.args]
         return context.builder.call(callee, args, 'calltmp')
@@ -198,9 +198,20 @@ class Prototype(object):
         # Make the function type, eg. double(double, double).
         func_args = (Type.double(),) * len(self.args)
         func_type = Type.function(Type.double(), func_args, False)
-        func = Func.new(context.module, func_type, self.name)
 
-        # FIXME deal with function redefinition
+        for func in context.module.functions:
+            if func.name == self.name:
+                if not func.is_declaration:
+                    raise RuntimeError('Redefinition of function.')
+
+                if len(func.args) != len(self.args):
+                    raise RuntimeError('Redeclaration of a function with a '
+                                       'different number of args.')
+
+                break
+
+        else:
+            func = Func.new(context.module, func_type, self.name)
 
         for arg, name in zip(func.args, self.args):
             arg.name = name
